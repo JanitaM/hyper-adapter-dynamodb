@@ -2,7 +2,19 @@
 
 import { crocks } from "./deps.js";
 import * as lib from "./lib/dynamodb.js";
-import { notOk, okDoc, okDocs, okId } from "./lib/utils.js";
+import {
+  notOk,
+  okGetDoc,
+  okDocs,
+  okId,
+  ok,
+  okQuery,
+  notOkCreateDoc,
+  notOkGetDoc,
+  okDeleteDoc,
+  okListDocs,
+  okBulkDocs
+} from "./lib/responseBuilders.js";
 
 const { Async } = crocks;
 
@@ -63,7 +75,8 @@ export default function (ddb) {
     updateDocument: Async.fromPromise(lib.updateDocument(ddb)),
     removeDocument: Async.fromPromise(lib.removeDocument(ddb)),
     queryDocuments: Async.fromPromise(lib.queryDocuments(ddb)),
-    listDocuments: Async.fromPromise(lib.listDocuments(ddb))
+    listDocuments: Async.fromPromise(lib.listDocuments(ddb)),
+    bulkDocuments: Async.fromPromise(lib.bulkDocuments(ddb)),
   };
 
   /**
@@ -72,7 +85,7 @@ export default function (ddb) {
    */
 
   function createDatabase(name) {
-    return client.createDatabase(name).bimap(notOk, okDoc).toPromise();
+    return client.createDatabase(name).bimap(notOk, ok).toPromise();
   }
 
   /**
@@ -80,7 +93,7 @@ export default function (ddb) {
    * @returns {Promise<Response>}
    */
   function removeDatabase(name) {
-    return client.removeDatabase(name).bimap(notOk, okDoc).toPromise();
+    return client.removeDatabase(name).bimap(notOk, ok).toPromise();
   }
 
   /**
@@ -90,7 +103,7 @@ export default function (ddb) {
   function createDocument({ db, id, doc }) {
     return client
       .createDocument({ db, id, doc })
-      .bimap(notOk, okId)
+      .bimap(notOkCreateDoc, okId)
       .toPromise();
   }
 
@@ -99,7 +112,10 @@ export default function (ddb) {
    * @returns {Promise<Response>}
    */
   function retrieveDocument({ db, id }) {
-    return client.retrieveDocument({ db, id }).bimap(notOk, okDoc).toPromise();
+    return client
+      .retrieveDocument({ db, id })
+      .bimap(notOkGetDoc, okGetDoc)
+      .toPromise();
   }
 
   /**
@@ -117,8 +133,11 @@ export default function (ddb) {
    * @param {RetrieveDocumentArgs}
    * @returns {Promise<Response>}
    */
-  function removeDocument({ db, id }) {
-    return client.removeDocument({ db, id }).bimap(notOk, okId).toPromise();
+  async function removeDocument({ db, id }) {
+    return client
+      .removeDocument({ db, id })
+      .bimap(notOk, okDeleteDoc)
+      .toPromise();
   }
 
   /**
@@ -126,10 +145,8 @@ export default function (ddb) {
    * @returns {Promise<Response>}
    */
   async function queryDocuments({ query }) {
-    // pk = db, query = partiql
-    // do simple select *
     console.log("query: ", query);
-    return client.queryDocuments(query).bimap(notOk, okDoc).toPromise();
+    return client.queryDocuments(query).bimap(notOk, okQuery).toPromise();
   }
 
   /**
@@ -155,7 +172,7 @@ export default function (ddb) {
     startkey,
     endkey,
     keys,
-    descending
+    descending,
   }) {
     return client
       .listDocuments({
@@ -164,9 +181,9 @@ export default function (ddb) {
         startkey,
         endkey,
         keys,
-        descending
+        descending,
       })
-      .bimap(notOk, okDocs)
+      .bimap(notOk, okListDocs)
       .toPromise();
     // pk = db, sk = startkey, endkey, keys
     // use cases:
@@ -185,6 +202,10 @@ export default function (ddb) {
   async function bulkDocuments({ db, docs }) {
     // could be put or delete
     // pk = db, sk = id from each docs (may need error check that docs have an id)
+    return client
+      .bulkDocuments({ db, docs })
+      .bimap(notOk, okBulkDocs)
+      .toPromise();
   }
 
   return Object.freeze({
@@ -197,6 +218,6 @@ export default function (ddb) {
     queryDocuments,
     indexDocuments,
     listDocuments,
-    bulkDocuments
+    bulkDocuments,
   });
 }
